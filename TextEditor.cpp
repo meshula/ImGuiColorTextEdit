@@ -253,7 +253,7 @@ void TextEditor::DeleteRange(const Coordinates& aStart, const Coordinates& aEnd)
 		auto& lastLine = mLines[aEnd.mLine];
 
 		if (aStart.mLine < aEnd.mLine)
-			AddGlyphsToLine(aStart.mLine, firstLine.size(), lastLine.begin(), lastLine.end());
+			AddGlyphsToLine(aStart.mLine, (int) firstLine.size(), lastLine.begin(), lastLine.end());
 
 		if (aStart.mLine < aEnd.mLine)
 			RemoveLines(aStart.mLine + 1, aEnd.mLine + 1);
@@ -420,7 +420,7 @@ TextEditor::Coordinates TextEditor::FindWordStart(const Coordinates& aFrom) cons
 		{
 			bool isWordChar = IsGlyphWordChar(line[cindex]);
 			bool isSpace = isspace(line[cindex].mChar);
-			if (initialIsSpace && !isSpace || initialIsWordChar && !isWordChar || !initialIsWordChar && !initialIsSpace && initialChar != line[cindex].mChar)
+			if (((initialIsSpace && !isSpace) || (initialIsWordChar && !isWordChar) || (!initialIsWordChar && !initialIsSpace)) && (initialChar != line[cindex].mChar))
 			{
 				needToAdvance = true;
 				break;
@@ -457,7 +457,7 @@ TextEditor::Coordinates TextEditor::FindWordEnd(const Coordinates& aFrom) const
 
 		bool isWordChar = IsGlyphWordChar(line[cindex]);
 		bool isSpace = isspace(line[cindex].mChar);
-		if (initialIsSpace && !isSpace || initialIsWordChar && !isWordChar || !initialIsWordChar && !initialIsSpace && initialChar != line[cindex].mChar)
+        if (((initialIsSpace && !isSpace) || (initialIsWordChar && !isWordChar) || (!initialIsWordChar && !initialIsSpace)) && (initialChar != line[cindex].mChar))
 			break;
 	}
 	at.mColumn = GetCharacterColumn(at.mLine, cindex);
@@ -780,7 +780,7 @@ void TextEditor::RemoveGlyphsFromLine(int aLine, int aStartChar, int aEndChar)
 void TextEditor::AddGlyphsToLine(int aLine, int aTargetIndex, Line::iterator aSourceStart, Line::iterator aSourceEnd)
 {
 	int targetColumn = GetCharacterColumn(aLine, aTargetIndex);
-	int charsInserted = std::distance(aSourceStart, aSourceEnd);
+	int charsInserted = (int) std::distance(aSourceStart, aSourceEnd);
 	auto& line = mLines[aLine];
 	OnLineChanged(true, aLine, targetColumn, charsInserted, false);
 	line.insert(line.begin() + aTargetIndex, aSourceStart, aSourceEnd);
@@ -864,10 +864,10 @@ bool TextEditor::IsGlyphWordChar(const Glyph& aGlyph)
 {
 	int sizeInBytes = UTF8CharLength(aGlyph.mChar);
 	return sizeInBytes > 1 ||
-		aGlyph.mChar >= 'a' && aGlyph.mChar <= 'z' ||
-		aGlyph.mChar >= 'A' && aGlyph.mChar <= 'Z' ||
-		aGlyph.mChar >= '0' && aGlyph.mChar <= '9' ||
-		aGlyph.mChar == '_';
+		(aGlyph.mChar >= 'a' && aGlyph.mChar <= 'z') ||
+		(aGlyph.mChar >= 'A' && aGlyph.mChar <= 'Z') ||
+		(aGlyph.mChar >= '0' && aGlyph.mChar <= '9') ||
+		(aGlyph.mChar == '_');
 }
 
 void TextEditor::HandleKeyboardInputs(bool aParentIsFocused)
@@ -929,9 +929,9 @@ void TextEditor::HandleKeyboardInputs(bool aParentIsFocused)
 			Backspace(ctrl);
 		else if (!IsReadOnly() && !alt && ctrl && shift && !super && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_K)))
 			RemoveCurrentLines();
-		else if (!IsReadOnly() && !alt && ctrl && !shift && !super && ImGui::IsKeyPressed('['))
+		else if (!IsReadOnly() && !alt && ctrl && !shift && !super && ImGui::IsKeyPressed((ImGuiKey) '['))
 			ChangeCurrentLinesIndentation(false);
-		else if (!IsReadOnly() && !alt && ctrl && !shift && !super && ImGui::IsKeyPressed(']'))
+		else if (!IsReadOnly() && !alt && ctrl && !shift && !super && ImGui::IsKeyPressed((ImGuiKey) ']'))
 			ChangeCurrentLinesIndentation(true);
 		else if (!alt && !ctrl && !shift && !super && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Insert)))
 			mOverwrite ^= true;
@@ -1634,7 +1634,7 @@ void TextEditor::EnterCharacter(ImWchar aChar, bool aShift)
 
 			const size_t whitespaceSize = newLine.size();
 			auto cindex = GetCharacterIndex(coord);
-			AddGlyphsToLine(coord.mLine + 1, newLine.size(), line.begin() + cindex, line.end());
+			AddGlyphsToLine(coord.mLine + 1, (int) newLine.size(), line.begin() + cindex, line.end());
 			RemoveGlyphsFromLine(coord.mLine, cindex);
 			SetCursorPosition(Coordinates(coord.mLine + 1, GetCharacterColumn(coord.mLine + 1, (int)whitespaceSize)), c);
 		}
@@ -2203,7 +2203,7 @@ void TextEditor::Delete(bool aWordMode)
 				u.mOperations.push_back({ "\n", startCoords, endCoords, UndoOperationType::Delete });
 
 				auto& nextLine = mLines[pos.mLine + 1];
-				AddGlyphsToLine(pos.mLine, line.size(), nextLine.begin(), nextLine.end());
+				AddGlyphsToLine(pos.mLine, (int) line.size(), nextLine.begin(), nextLine.end());
 				for (int otherCursor = c + 1;
 					otherCursor <= mState.mCurrentCursor && mState.mCursors[otherCursor].mCursorPosition.mLine == pos.mLine + 1;
 					otherCursor++) // move up cursors in next line
@@ -2289,7 +2289,7 @@ void TextEditor::Backspace(bool aWordMode)
 				int prevLineIndex = mState.mCursors[c].mCursorPosition.mLine - 1;
 				auto& prevLine = mLines[prevLineIndex];
 				auto prevSize = GetLineMaxColumn(prevLineIndex);
-				AddGlyphsToLine(prevLineIndex, prevLine.size(), line.begin(), line.end());
+				AddGlyphsToLine(prevLineIndex, (int) prevLine.size(), line.begin(), line.end());
 				std::unordered_set<int> cursorsHandled = { c };
 				for (int otherCursor = c + 1;
 					otherCursor <= mState.mCurrentCursor && mState.mCursors[otherCursor].mCursorPosition.mLine == mState.mCursors[c].mCursorPosition.mLine;
@@ -2456,7 +2456,7 @@ void TextEditor::Paste()
 				clipTextLines.push_back({ i + 1, 0 });
 			}
 		}
-		clipTextLines.back().second = clipText.length();
+		clipTextLines.back().second = (int) clipText.length();
 		canPasteToMultipleCursors = clipTextLines.size() == mState.mCurrentCursor + 1;
 	}
 
@@ -3085,7 +3085,7 @@ TextEditor::UndoRecord::UndoRecord(
 
 void TextEditor::UndoRecord::Undo(TextEditor* aEditor)
 {
-	for (int i = mOperations.size() - 1; i > -1; i--)
+	for (int i = (int)mOperations.size() - 1; i > -1; i--)
 	{
 		const UndoOperation& operation = mOperations[i];
 		if (!operation.mText.empty())
