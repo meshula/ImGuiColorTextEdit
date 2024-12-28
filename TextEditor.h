@@ -202,7 +202,7 @@ public:
 	TextEditor();
 	~TextEditor();
 
-	void SetLanguageDefinition(const LanguageDefinition& aLanguageDef);
+	void SetLanguageDefinition(const LanguageDefinition* aLanguageDef);
 	const char* GetLanguageDefinitionName() const;
 
 	const Palette& GetPalette() const { return mPaletteBase; }

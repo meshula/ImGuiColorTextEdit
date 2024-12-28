@@ -57,9 +57,9 @@ TextEditor::~TextEditor()
 {
 }
 
-void TextEditor::SetLanguageDefinition(const LanguageDefinition& aLanguageDef)
+void TextEditor::SetLanguageDefinition(const LanguageDefinition* aLanguageDef)
 {
-	mLanguageDefinition = &aLanguageDef;
+	mLanguageDefinition = aLanguageDef;
 	mRegexList.clear();
 
 	for (const auto& r : mLanguageDefinition->mTokenRegexStrings)
