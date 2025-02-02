@@ -1424,62 +1424,92 @@ void TextEditor::Render(const char* aTitle, bool aParentIsFocused, const ImVec2&
 
 void TextEditor::SetText(const std::string& aText)
 {
-	mLines.clear();
-	mLines.emplace_back(Line());
-	for (auto chr : aText)
-	{
-		if (chr == '\r')
-		{
-			// ignore the carriage return character
-		}
-		else if (chr == '\n')
-			mLines.emplace_back(Line());
-		else
-		{
-			mLines.back().emplace_back(Glyph(chr, PaletteIndex::Default));
-		}
-	}
+    mLines.clear();
+    static bool mReadOnly = false; // Clear read-only flag at start
 
-	mTextChanged = true;
-	mScrollToTop = true;
+    // Pass 1: Count lines and record their start positions
+    std::vector<size_t> lineStarts;
+    lineStarts.reserve(1024);
+    lineStarts.push_back(0); // First line always starts at index 0
 
-	mUndoBuffer.clear();
-	mUndoIndex = 0;
+    for (size_t i = 0; i < aText.size(); ++i)
+    {
+        if (aText[i] == '\n')
+            lineStarts.push_back(i + 1);
+    }
 
-	Colorize();
+    size_t lineCount = lineStarts.size();
+    mLines.resize(lineCount);
+
+    // Pass 2: Copy lines efficiently, handling truncation
+    for (size_t currLine = 0; currLine < lineCount; ++currLine)
+    {
+        size_t start = lineStarts[currLine];
+        size_t end = (currLine + 1 < lineCount) ? lineStarts[currLine + 1] - 1 : aText.size(); // Exclude newline
+
+        size_t length = end - start;
+        bool truncated = (length > 200);
+
+        size_t copyLength = truncated ? 200 : length;
+        mLines[currLine].reserve(copyLength + (truncated ? 3 : 0)); // Extra space for "..." if truncated
+
+        for (size_t i = 0; i < copyLength; ++i)
+        {
+            if (aText[start + i] != '\r') // Skip carriage returns
+                mLines[currLine].emplace_back(Glyph(aText[start + i], PaletteIndex::Default));
+        }
+
+        if (truncated)
+        {
+            mLines[currLine].emplace_back(Glyph('.', PaletteIndex::Default));
+            mLines[currLine].emplace_back(Glyph('.', PaletteIndex::Default));
+            mLines[currLine].emplace_back(Glyph('.', PaletteIndex::Default));
+            mReadOnly = true; // Set read-only flag since truncation occurred
+        }
+    }
+
+    mTextChanged = true;
+    mScrollToTop = true;
+
+    mUndoBuffer.clear();
+    mUndoIndex = 0;
+
+    Colorize();
 }
+
 
 void TextEditor::SetTextLines(const std::vector<std::string>& aLines)
 {
-	mLines.clear();
+    mLines.clear();
 
-	if (aLines.empty())
-	{
-		mLines.emplace_back(Line());
-	}
-	else
-	{
-		mLines.resize(aLines.size());
+    if (aLines.empty())
+    {
+        mLines.emplace_back(Line());
+    }
+    else
+    {
+        mLines.reserve(aLines.size());
 
-		for (size_t i = 0; i < aLines.size(); ++i)
-		{
-			const std::string& aLine = aLines[i];
+        for (const std::string& aLine : aLines)
+        {
+            Line line;
+            line.reserve(aLine.size());
 
-			mLines[i].reserve(aLine.size());
-			for (size_t j = 0; j < aLine.size(); ++j)
-				mLines[i].emplace_back(Glyph(aLine[j], PaletteIndex::Default));
-		}
-	}
+            std::transform(aLine.begin(), aLine.end(), std::back_inserter(line),
+                           [](char ch) { return Glyph(ch, PaletteIndex::Default); });
 
-	mTextChanged = true;
-	mScrollToTop = true;
+            mLines.emplace_back(std::move(line));
+        }
+    }
 
-	mUndoBuffer.clear();
-	mUndoIndex = 0;
+    mTextChanged = true;
+    mScrollToTop = true;
 
-	Colorize();
+    mUndoBuffer.clear();
+    mUndoIndex = 0;
+
+    Colorize();
 }
-
 
 void TextEditor::ChangeCurrentLinesIndentation(bool aIncrease)
 {
@@ -2769,6 +2799,10 @@ void TextEditor::ColorizeRange(int aFromLine, int aToLine)
 		if (line.empty())
 			continue;
 
+        const size_t bailout = 200;
+        if (line.size() > bailout)
+            continue;
+
 		buffer.resize(line.size());
 		for (size_t j = 0; j < line.size(); ++j)
 		{
@@ -2969,7 +3003,8 @@ void TextEditor::ColorizeInternal()
 				}
 				line[currentIndex].mPreprocessor = withinPreproc;
 				currentIndex += UTF8CharLength(c);
-				if (currentIndex >= (int)line.size())
+                const int lineBailOutLength = 200;
+				if (currentIndex > lineBailOutLength || currentIndex >= (int)line.size())
 				{
 					currentIndex = 0;
 					++currentLine;
@@ -3024,6 +3059,10 @@ float TextEditor::TextDistanceToLineStart(const Coordinates& aFrom) const
 			tempCString[i] = '\0';
 			distance += ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, -1.0f, tempCString, nullptr, nullptr).x;
 		}
+
+        const float bailOut = 1000.f;
+        if (distance > bailOut)
+            break;
 	}
 
 	return distance;
